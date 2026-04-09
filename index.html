@@ -618,6 +618,11 @@ function importData(event){
 const historicalData = loadHistory();
 let port = loadPort();
 
+/* ── AUTO-REFRESH ── */
+let autoRefreshTimer = null;
+let isFetchingLiveData = false;
+const AUTO_REFRESH_MS = 60000; // 每 60 秒更新一次
+
 /* Live price state */
 let liveData = {
   price2802: historicalData[historicalData.length-1]?.nav2802 || 8.13,
@@ -1031,59 +1036,77 @@ function addRecord(){
 
 /* ── LIVE FETCH ── */
 async function fetchLiveData(){
+  if(isFetchingLiveData) return;
+  isFetchingLiveData = true;
   const btn = document.querySelector('.btn-primary');
   btn.disabled=true;
   btn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> 讀取中…';
   el('statusDot').className='status-dot';
-
-  const symbols = ['2802.HK','3416.HK','^HSCE'];
-  const YF_URL = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${symbols.join(',')}&fields=regularMarketPrice,regularMarketPreviousClose`;
-  const PROXIES = [
-    'https://corsproxy.io/?url=',
-    'https://api.allorigins.win/raw?url=',
-    'https://thingproxy.freeboard.io/fetch/',
-  ];
-  let success = false;
-
-  for(const PROXY of PROXIES){
-    if(success) break;
-    try{
-      const url = PROXY + encodeURIComponent(YF_URL);
-      const res = await fetch(url, {signal: AbortSignal.timeout(7000)});
-      if(!res.ok) continue;
-      const json = await res.json();
-      const results = json?.quoteResponse?.result||[];
-      if(results.length>0){
-        results.forEach(q=>{
-          if(q.symbol==='2802.HK'){liveData.price2802=q.regularMarketPrice;liveData.prev2802=q.regularMarketPreviousClose;}
-          if(q.symbol==='3416.HK'){liveData.price3416=q.regularMarketPrice;liveData.prev3416=q.regularMarketPreviousClose;}
-          if(q.symbol==='^HSCE'){liveData.hscei=q.regularMarketPrice;liveData.prevHscei=q.regularMarketPreviousClose;}
-        });
-        liveData.isLive=true;
-        liveData.lastUpdated=new Date();
-        success=true;
-        console.log('Live data via:', PROXY);
-      }
-    }catch(e){console.warn('Proxy failed:', PROXY, e.message);}
+  try{
+    const symbols = ['2802.HK','3416.HK','^HSCE'];
+    const YF_URL = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${symbols.join(',')}&fields=regularMarketPrice,regularMarketPreviousClose`;
+    const PROXIES = [
+      'https://corsproxy.io/?url=',
+      'https://api.allorigins.win/raw?url=',
+      'https://thingproxy.freeboard.io/fetch/',
+    ];
+    let success = false;
+    for(const PROXY of PROXIES){
+      if(success) break;
+      try{
+        const url = PROXY + encodeURIComponent(YF_URL);
+        const res = await fetch(url, {signal: AbortSignal.timeout(7000)});
+        if(!res.ok) continue;
+        const json = await res.json();
+        const results = json?.quoteResponse?.result||[];
+        if(results.length>0){
+          results.forEach(q=>{
+            if(q.symbol==='2802.HK'){liveData.price2802=q.regularMarketPrice;liveData.prev2802=q.regularMarketPreviousClose;}
+            if(q.symbol==='3416.HK'){liveData.price3416=q.regularMarketPrice;liveData.prev3416=q.regularMarketPreviousClose;}
+            if(q.symbol==='^HSCE'){liveData.hscei=q.regularMarketPrice;liveData.prevHscei=q.regularMarketPreviousClose;}
+          });
+          liveData.isLive=true;
+          liveData.lastUpdated=new Date();
+          success=true;
+          console.log('Live data via:', PROXY);
+        }
+      }catch(e){console.warn('Proxy failed:', PROXY, e.message);}
+    }
+    if(!success){
+      liveData.isLive=false;
+      el('lastUpdate').textContent='示範數據 — 點擊下方手動輸入';
+      el('manualPriceBox').style.display='block';
+    }else{
+      const t=liveData.lastUpdated;
+      el('lastUpdate').textContent=`即時更新於 ${t.getHours().toString().padStart(2,'0')}:${t.getMinutes().toString().padStart(2,'0')}`;
+      el('manualPriceBox').style.display='none';
+    }
+    el('statusDot').className='status-dot '+(liveData.isLive?'live':'demo');
+    updateKPIs();
+    updateRiskSignals();
+    updateAllCharts();
+  }finally{
+    btn.disabled=false;
+    btn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> 更新數據';
+    isFetchingLiveData = false;
   }
-
-  if(!success){
-    liveData.isLive=false;
-    el('lastUpdate').textContent='示範數據 — 點擊下方手動輸入';
-    el('manualPriceBox').style.display='block';
-  }else{
-    const t=liveData.lastUpdated;
-    el('lastUpdate').textContent=`即時更新於 ${t.getHours().toString().padStart(2,'0')}:${t.getMinutes().toString().padStart(2,'0')}`;
-    el('manualPriceBox').style.display='none';
-  }
-
-  el('statusDot').className='status-dot '+(liveData.isLive?'live':'demo');
-  btn.disabled=false;
-  btn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> 更新數據';
-  updateKPIs();
-  updateRiskSignals();
-  updateAllCharts();
 }
+
+function startAutoRefresh(){
+  stopAutoRefresh();
+  autoRefreshTimer = setInterval(()=>{
+    if(document.visibilityState==='visible') fetchLiveData();
+  }, AUTO_REFRESH_MS);
+}
+
+function stopAutoRefresh(){
+  if(autoRefreshTimer){ clearInterval(autoRefreshTimer); autoRefreshTimer=null; }
+}
+
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'){ fetchLiveData(); startAutoRefresh(); }
+  else stopAutoRefresh();
+});
 
 function applyManualPrices(){
   const p2802 = parseFloat(el('m2802').value);
@@ -1117,7 +1140,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   updateAllCharts();
   el('statusDot').className='status-dot demo';
   el('lastUpdate').textContent='示範數據（按「更新數據」獲取即時）';
-  setTimeout(fetchLiveData, 800);
+  setTimeout(()=>{ fetchLiveData(); startAutoRefresh(); }, 800);
 });
 </script>
 </body>
