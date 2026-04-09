@@ -98,6 +98,16 @@ canvas{display:block;width:100%!important}
 .delta.up{color:var(--success)}
 .delta.down{color:var(--error)}
 .delta.flat{color:var(--muted)}
+<!-- 喺 kpi-grid 入面，加係最後一個 kpi-card 之後 -->
+<div class="kpi-card" style="--accent:var(--gold)">
+  <div class="kpi-card__before" style="background:var(--gold)"></div>
+  <div class="kpi-label">下次除淨日 (Est.)</div>
+  <div class="kpi-value num" id="kpiExDate" style="font-size:var(--text-lg)">—</div>
+  <div class="kpi-sub">
+    <span id="kpiExDaysLeft" class="delta"></span>
+    <span style="color:var(--muted)"> 日後 · 派息日約+30日</span>
+  </div>
+</div>
 /* ── CHARTS GRID ─────────────────────────────────── */
 .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp4)}
 .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--sp5);box-shadow:var(--shadow)}
@@ -850,8 +860,54 @@ function updateKPIs(){
   el('kpiAumDelta2802').className='delta '+(aumChg>0?'up':aumChg<0?'down':'flat');
 
   updatePortfolio();
+  updateExDate() ;
 }
 
+/* ── 計算當月/下月第3個星期五（2802/3416 除淨日） ── */
+function getThirdFriday(year, month){
+  // month: 0-indexed
+  let count = 0;
+  for(let d = 1; d <= 31; d++){
+    const date = new Date(year, month, d);
+    if(date.getMonth() !== month) break;
+    if(date.getDay() === 5){ // Friday
+      count++;
+      if(count === 3) return date;
+    }
+  }
+  return null;
+}
+
+function updateExDate(){
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  // 今個月第3個星期五
+  let exDate = getThirdFriday(today.getFullYear(), today.getMonth());
+  
+  // 如果已過或今日就係，用下個月
+  if(exDate <= today){
+    const nextMonth = today.getMonth() === 11 ? 0 : today.getMonth() + 1;
+    const nextYear  = today.getMonth() === 11 ? today.getFullYear() + 1 : today.getFullYear();
+    exDate = getThirdFriday(nextYear, nextMonth);
+  }
+
+  const daysLeft = Math.round((exDate - today) / (1000 * 60 * 60 * 24));
+  const payDate  = new Date(exDate);
+  payDate.setDate(payDate.getDate() + 30); // 派息日約 +30 日
+
+  const fmt = d => `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+
+  el('kpiExDate').textContent = fmt(exDate);
+  el('kpiExDaysLeft').textContent = `${daysLeft}`;
+  el('kpiExDaysLeft').className = `delta ${daysLeft <= 7 ? 'down' : daysLeft <= 14 ? 'flat' : 'up'}`;
+
+  // 更新派息日副標題
+  const payEl = document.getElementById('kpiPayDate');
+  if(payEl) payEl.textContent = `派息日(Est.): ${fmt(payDate)}`;
+}
+
+  
 /* ── PORTFOLIO CALC ── */
 function updatePortfolio(){
   port.units = parseFloat(el('editUnits').value)||400;
