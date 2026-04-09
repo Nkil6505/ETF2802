@@ -98,16 +98,6 @@ canvas{display:block;width:100%!important}
 .delta.up{color:var(--success)}
 .delta.down{color:var(--error)}
 .delta.flat{color:var(--muted)}
-<!-- 喺 kpi-grid 入面，加係最後一個 kpi-card 之後 -->
-<div class="kpi-card" style="--accent:var(--gold)">
-  <div class="kpi-card__before" style="background:var(--gold)"></div>
-  <div class="kpi-label">下次除淨日 (Est.)</div>
-  <div class="kpi-value num" id="kpiExDate" style="font-size:var(--text-lg)">—</div>
-  <div class="kpi-sub">
-    <span id="kpiExDaysLeft" class="delta"></span>
-    <span style="color:var(--muted)"> 日後 · 派息日約+30日</span>
-  </div>
-</div>
 /* ── CHARTS GRID ─────────────────────────────────── */
 .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp4)}
 .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--sp5);box-shadow:var(--shadow)}
@@ -265,12 +255,14 @@ canvas{display:block;width:100%!important}
     <div class="kpi-card cportfolio">
       <div class="kpi-label">你的組合 淨損益</div>
       <div class="kpi-value num" id="kpiPortPnl">—</div>
-      <div class="kpi-sub"><span id="kpiPortSub" style="color:var(--muted)">400股 @ $8.249</span></div>         </div>         <div class="kpi-card cportfolio">           <div class="kpi-label">下次除淨日 (Est.)</div>           <div class="kpi-value num" id="kpiExDate" style="font-size:var(--text-lg)">—</div>           <div class="kpi-sub"><span id="kpiExDaysLeft" class="delta"></span><span style="color:var(--muted)"> 日後 &middot; 派息日(Est.): </span><span id="kpiPayDate" style="color:var(--muted)">—</span></div> style="color:var(--muted)">400股 @ $8.249</span></div>
+      <div class="kpi-sub"><span id="kpiPortSub" style="color:var(--muted)">400股 @ $8.249</span></div>         </div>         <div class="kpi-card cportfolio">           <div class="kpi-label">下次除淨日 (Est.)</div>           <div class="kpi-value num" id="260
+                                                                                                                                                                                                                                " style="font-size:var(--text-lg)">—</div>           <div class="kpi-sub"><span id="kpiExDaysLeft" class="delta"></span><span style="color:var(--muted)"> 日後 &middot; 派息日(Est.): </span><span id="kpiPayDate" style="color:var(--muted)">—</span></div> style="color:var(--muted)">400股 @ $8.249</span></div>
     </div>
   </div>
           <div class="kpi-card cportfolio">
           <div class="kpi-label">下次除淨日 (Est.)</div>
-          <div class="kpi-value num" id="kpiExDate" style="font-size:var(--text-lg)">—</div>
+          <div class="kpi-value num" id="248
+            " style="font-size:var(--text-lg)">—</div>
           <div class="kpi-sub"><span id="kpiExDaysLeft" class="delta"></span><span style="color:var(--muted)"> 日後 &middot; 派息日(Est.): </span><span id="kpiPayDate" style="color:var(--muted)">—</span></div>
         </div>
 
@@ -903,7 +895,8 @@ function updateExDate(){
 
   const fmt = d => `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
 
-  el('kpiExDate').textContent = fmt(exDate);
+  el('256
+     ').textContent = fmt(exDate);
   el('kpiExDaysLeft').textContent = `${daysLeft}`;
   el('kpiExDaysLeft').className = `delta ${daysLeft <= 7 ? 'down' : daysLeft <= 14 ? 'flat' : 'up'}`;
 
