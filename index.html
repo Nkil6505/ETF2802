@@ -1036,13 +1036,38 @@ function addRecord(){
 
 /* ── LIVE FETCH ── */
 async function fetchLiveData(){
-  if(isFetchingLiveData) return;
-  isFetchingLiveData = true;
   const btn = document.querySelector('.btn-primary');
-  btn.disabled=true;
-  btn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> 讀取中…';
-  el('statusDot').className='status-dot';
+  btn.disabled = true;
+  btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> 讀取中…';
+  el('statusDot').className = 'status-dot';
+
+  let success = false;
+
+  /* ── 方法 1：fetch 同域 data/live.json（GitHub Actions 自動更新） ── */
   try{
+    const res = await fetch('data/live.json?t=' + Date.now(), {cache:'no-store'});
+    if(res.ok){
+      const json = await res.json();
+      const prices = json.prices || {};
+      const updatedAt = json.updatedAt ? new Date(json.updatedAt) : null;
+
+      if(prices['2802.HK']?.price){
+        liveData.price2802 = prices['2802.HK'].price;
+        liveData.prev2802  = prices['2802.HK'].prev  || liveData.price2802;
+        liveData.price3416 = prices['3416.HK'].price || liveData.price3416;
+        liveData.prev3416  = prices['3416.HK'].prev  || liveData.price3416;
+        liveData.hscei     = prices['^HSCE'].price   || liveData.hscei;
+        liveData.prevHscei = prices['^HSCE'].prev    || liveData.hscei;
+        liveData.isLive    = true;
+        liveData.lastUpdated = updatedAt || new Date();
+        success = true;
+        console.log('Live data loaded from data/live.json');
+      }
+    }
+  }catch(e){ console.warn('data/live.json fetch failed:', e.message); }
+
+  /* ── 方法 2：CORS Proxy fallback（若 live.json 過舊或失敗） ── */
+  if(!success){
     const symbols = ['2802.HK','3416.HK','^HSCE'];
     const YF_URL = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${symbols.join(',')}&fields=regularMarketPrice,regularMarketPreviousClose`;
     const PROXIES = [
@@ -1050,7 +1075,6 @@ async function fetchLiveData(){
       'https://api.allorigins.win/raw?url=',
       'https://thingproxy.freeboard.io/fetch/',
     ];
-    let success = false;
     for(const PROXY of PROXIES){
       if(success) break;
       try{
@@ -1058,55 +1082,46 @@ async function fetchLiveData(){
         const res = await fetch(url, {signal: AbortSignal.timeout(7000)});
         if(!res.ok) continue;
         const json = await res.json();
-        const results = json?.quoteResponse?.result||[];
-        if(results.length>0){
+        const results = json?.quoteResponse?.result || [];
+        if(results.length > 0){
           results.forEach(q=>{
             if(q.symbol==='2802.HK'){liveData.price2802=q.regularMarketPrice;liveData.prev2802=q.regularMarketPreviousClose;}
             if(q.symbol==='3416.HK'){liveData.price3416=q.regularMarketPrice;liveData.prev3416=q.regularMarketPreviousClose;}
             if(q.symbol==='^HSCE'){liveData.hscei=q.regularMarketPrice;liveData.prevHscei=q.regularMarketPreviousClose;}
           });
-          liveData.isLive=true;
-          liveData.lastUpdated=new Date();
-          success=true;
-          console.log('Live data via:', PROXY);
+          liveData.isLive = true;
+          liveData.lastUpdated = new Date();
+          success = true;
+          console.log('Live data via CORS proxy:', PROXY);
         }
-      }catch(e){console.warn('Proxy failed:', PROXY, e.message);}
+      }catch(e){ console.warn('Proxy failed:', PROXY, e.message); }
     }
-    if(!success){
-      liveData.isLive=false;
-      el('lastUpdate').textContent='示範數據 — 點擊下方手動輸入';
-      el('manualPriceBox').style.display='block';
-    }else{
-      const t=liveData.lastUpdated;
-      el('lastUpdate').textContent=`即時更新於 ${t.getHours().toString().padStart(2,'0')}:${t.getMinutes().toString().padStart(2,'0')}`;
-      el('manualPriceBox').style.display='none';
-    }
-    el('statusDot').className='status-dot '+(liveData.isLive?'live':'demo');
-    updateKPIs();
-    updateRiskSignals();
-    updateAllCharts();
-  }finally{
-    btn.disabled=false;
-    btn.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> 更新數據';
-    isFetchingLiveData = false;
   }
-}
 
-function startAutoRefresh(){
-  stopAutoRefresh();
-  autoRefreshTimer = setInterval(()=>{
-    if(document.visibilityState==='visible') fetchLiveData();
-  }, AUTO_REFRESH_MS);
-}
+  /* ── 結果處理 ── */
+  if(!success){
+    liveData.isLive = false;
+    el('lastUpdate').textContent = '示範數據 — 點擊下方手動輸入';
+    el('manualPriceBox').style.display = 'block';
+  }else{
+    const t = liveData.lastUpdated;
+    const hh = t.getHours().toString().padStart(2,'0');
+    const mm = t.getMinutes().toString().padStart(2,'0');
+    // 若 data 係 live.json 嚟，顯示 GitHub Actions 更新時間
+    const isFromFile = !!(liveData.lastUpdated && (Date.now() - liveData.lastUpdated.getTime()) > 60000);
+    el('lastUpdate').textContent = isFromFile
+      ? `數據更新於 ${t.toLocaleDateString('zh-HK')} ${hh}:${mm}（GitHub Actions）`
+      : `即時更新於 ${hh}:${mm}`;
+    el('manualPriceBox').style.display = 'none';
+  }
 
-function stopAutoRefresh(){
-  if(autoRefreshTimer){ clearInterval(autoRefreshTimer); autoRefreshTimer=null; }
+  el('statusDot').className = 'status-dot ' + (liveData.isLive ? 'live' : 'demo');
+  btn.disabled = false;
+  btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> 更新數據';
+  updateKPIs();
+  updateRiskSignals();
+  updateAllCharts();
 }
-
-document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible'){ fetchLiveData(); startAutoRefresh(); }
-  else stopAutoRefresh();
-});
 
 function applyManualPrices(){
   const p2802 = parseFloat(el('m2802').value);
