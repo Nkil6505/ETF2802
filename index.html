@@ -35,7 +35,7 @@
 [data-theme="dark"]{
   --bg:#0f0f0e;--surface:#171615;--surface-2:#1c1b19;
   --surface-off:#1a1917;--border:rgba(255,255,255,.08);
-  --text:#cdccca;--muted:#79787  6;--faint:#5a5957;
+  --text:#cdccca;--muted:#797876;--faint:#5a5957;
   --primary:#4f98a3;--primary-h:#227f8b;--primary-hl:#263535;
   --success:#6daa45;--error:#d163a7;--warn:#bb653b;
   --orange:#fdab43;--blue:#5591c7;--gold:#e8af34;
@@ -166,6 +166,9 @@ canvas{display:block;width:100%!important}
 .loading .kpi-value{animation:pulse 1.2s ease-in-out infinite}
 @keyframes countUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .kpi-value{animation:countUp .4s ease-out}
+/* ── STORAGE BADGE ── */
+.storage-badge{font-size:var(--text-xs);color:var(--muted);display:flex;align-items:center;gap:var(--sp1)}
+.storage-dot{width:6px;height:6px;border-radius:50%;background:var(--success)}
 </style>
 </head>
 <body>
@@ -340,10 +343,22 @@ canvas{display:block;width:100%!important}
         <div class="section-title">月度數據記錄（手動輸入；收息後請同步更新上方累計股息）</div>
         <div class="section-desc">每月在此輸入 NAV、AUM、派息等數據；持倉區的「已收股息價值」請按每月實收金額手動累加</div>
       </div>
-      <button class="btn btn-ghost" onclick="toggleAddForm()">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        加入記錄
-      </button>
+      <div style="display:flex;gap:var(--sp2);flex-wrap:wrap;align-items:center">
+        <div class="storage-badge" id="storageBadge"><span class="storage-dot"></span><span>已儲存至本機</span></div>
+        <button class="btn btn-ghost" onclick="exportData()" title="匯出備份 JSON">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          匯出
+        </button>
+        <label class="btn btn-ghost" style="cursor:pointer" title="匯入 JSON 備份">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          匯入
+          <input type="file" accept=".json" onchange="importData(event)" style="display:none">
+        </label>
+        <button class="btn btn-ghost" onclick="toggleAddForm()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          加入記錄
+        </button>
+      </div>
     </div>
 
     <!-- Add form -->
@@ -499,24 +514,120 @@ canvas{display:block;width:100%!important}
   if(btn)btn.addEventListener('click',()=>{dark=!dark;root.setAttribute('data-theme',dark?'dark':'light');setIcon(dark);updateAllCharts();});
 })();
 
-/* ── HISTORICAL DATA (seed) ── */
-const historicalData = [
+/* ── STORAGE KEYS ── */
+const LS_HISTORY = 'etf2802_history';
+const LS_PORT    = 'etf2802_port';
+
+/* ── SEED DATA (only used on first load) ── */
+const SEED_DATA = [
   {month:'2025-12',nav2802:8.80,nav3416:9.82,aum2802:25,aum3416:160,div2802:null,div3416:null,hscei:7920,strike:null,src:'manual'},
   {month:'2026-01',nav2802:9.35,nav3416:10.40,aum2802:45,aum3416:198,div2802:0.14,div3416:0.14,hscei:8820,strike:8900,src:'manual'},
   {month:'2026-02',nav2802:8.82,nav3416:9.88,aum2802:52,aum3416:205,div2802:0.14,div3416:0.14,hscei:8320,strike:8800,src:'manual'},
   {month:'2026-03',nav2802:8.13,nav3416:9.52,aum2802:56.4,aum3416:212,div2802:0.14,div3416:0.14,hscei:8457,strike:8400,src:'manual'},
 ];
 
+/* ── LOAD FROM localStorage (fall back to seed) ── */
+function loadHistory(){
+  try{
+    const raw = localStorage.getItem(LS_HISTORY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      if(Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  }catch(e){ console.warn('loadHistory error', e); }
+  return JSON.parse(JSON.stringify(SEED_DATA)); // deep clone seed
+}
+
+function loadPort(){
+  try{
+    const raw = localStorage.getItem(LS_PORT);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      if(parsed && typeof parsed.units === 'number') return parsed;
+    }
+  }catch(e){ console.warn('loadPort error', e); }
+  return { units: 400, cost: 8.249, divReceived: 0.00 };
+}
+
+/* ── SAVE TO localStorage ── */
+function saveHistory(){
+  try{
+    localStorage.setItem(LS_HISTORY, JSON.stringify(historicalData));
+    flashStorageBadge();
+  }catch(e){ console.warn('saveHistory error', e); }
+}
+
+function savePort(){
+  try{
+    localStorage.setItem(LS_PORT, JSON.stringify(port));
+  }catch(e){ console.warn('savePort error', e); }
+}
+
+function flashStorageBadge(){
+  const badge = document.getElementById('storageBadge');
+  if(!badge) return;
+  badge.style.color = 'var(--success)';
+  setTimeout(()=>{ badge.style.color = ''; }, 1500);
+}
+
+/* ── EXPORT / IMPORT ── */
+function exportData(){
+  const payload = { historicalData, port, exportedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `etf2802_backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function importData(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try{
+      const payload = JSON.parse(e.target.result);
+      if(Array.isArray(payload.historicalData) && payload.historicalData.length > 0){
+        historicalData.length = 0;
+        payload.historicalData.forEach(r => historicalData.push(r));
+        historicalData.sort((a,b) => a.month.localeCompare(b.month));
+        saveHistory();
+      }
+      if(payload.port && typeof payload.port.units === 'number'){
+        port.units = payload.port.units;
+        port.cost = payload.port.cost;
+        port.divReceived = payload.port.divReceived;
+        el('editUnits').value = port.units;
+        el('editCost').value = port.cost;
+        el('editDivRec').value = port.divReceived;
+        savePort();
+      }
+      renderLog(); updateAllCharts(); updateRiskSignals(); updateKPIs();
+      alert(`✅ 匯入成功！共 ${historicalData.length} 筆月度記錄`);
+    }catch(err){
+      alert('❌ 匯入失敗，請確認是有效的 ETF2802 備份 JSON 檔案');
+      console.error(err);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = ''; // reset so same file can be re-imported
+}
+
+/* ── MUTABLE DATA ── */
+const historicalData = loadHistory();
+let port = loadPort();
+
 /* Live price state */
 let liveData = {
-  price2802: 8.13, prev2802: 8.20,
-  price3416: 9.52, prev3416: 9.60,
-  hscei: 8457, prevHscei: 8500,
+  price2802: historicalData[historicalData.length-1]?.nav2802 || 8.13,
+  prev2802: 8.20,
+  price3416: historicalData[historicalData.length-1]?.nav3416 || 9.52,
+  prev3416: 9.60,
+  hscei: historicalData[historicalData.length-1]?.hscei || 8457,
+  prevHscei: 8500,
   lastUpdated: null, isLive: false
 };
-
-/* Portfolio state */
-let port = { units: 400, cost: 8.249, divReceived: 0.00 };
 
 /* ── CHARTS ── */
 let priceChart, divChart, aumChart, beChart;
@@ -525,7 +636,6 @@ let currentRange = '1m';
 function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
 
 function clr(){
-  // Returns resolved chart colors (bypasses Chart.js CSS variable limitation)
   const isDark = document.documentElement.getAttribute('data-theme')==='dark';
   return {
     c2802:  isDark ? '#4fc3c9' : '#01696f',
@@ -552,17 +662,14 @@ function buildPriceChart(){
   const d = chartDefaults();
   const all = historicalData;
   let slice;
-  if(currentRange==='1m') slice = all.slice(-2);  // min 2 pts for a visible line
+  if(currentRange==='1m') slice = all.slice(-2);
   else if(currentRange==='3m') slice = all.slice(-3);
   else slice = all;
 
-  // Generate daily-ish labels between months
   const labels = slice.map(r=>{
     const [y,m]=r.month.split('-');
     return `${y}/${m}`;
   });
-
-  // Add current point
   labels.push('現時');
   const base2802 = slice[0]?.nav2802||8.80;
   const base3416 = slice[0]?.nav3416||9.82;
@@ -599,7 +706,6 @@ function buildDivChart(){
   const d = chartDefaults();
   const withDiv = historicalData.filter(r=>r.div2802!==null);
   const labels = withDiv.map(r=>{const[y,m]=r.month.split('-');return `${y}/${m}`;});
-  // Add upcoming April
   labels.push('2026/04');
   const d2802 = [...withDiv.map(r=>r.div2802), 0.14];
   const d3416 = [...withDiv.map(r=>r.div3416), 0.14];
@@ -662,13 +768,11 @@ function buildBEChart(){
   const totalCost = units * cost;
   const divPerUnit = 0.14;
 
-  // First dividend: 300 units (corrected)
   const firstDivUnits = 300;
   const labels = ['現時'];
   const bePrices = [cost];
-  let cumDiv = port.divReceived * units; // already received per unit * units
+  let cumDiv = port.divReceived;
 
-  // Month 1: first div on 300 units (April 9)
   for(let m=1;m<=12;m++){
     let monthDiv = (m===1) ? firstDivUnits * divPerUnit : units * divPerUnit;
     cumDiv += monthDiv;
@@ -733,7 +837,6 @@ function updateKPIs(){
   el('kpiHsceiDelta').textContent = dH>=0?`▲ ${dH.toFixed(2)}%`:`▼ ${Math.abs(dH).toFixed(2)}%`;
   el('kpiHsceiDelta').className = 'delta '+(dH>0?'up':dH<0?'down':'flat');
 
-  // AUM from latest record
   const latest = historicalData[historicalData.length-1];
   el('kpiAum2802').textContent = `${latest.aum2802}`;
   const prevAum = historicalData.length>1?historicalData[historicalData.length-2].aum2802:latest.aum2802;
@@ -748,7 +851,8 @@ function updateKPIs(){
 function updatePortfolio(){
   port.units = parseFloat(el('editUnits').value)||400;
   port.cost = parseFloat(el('editCost').value)||8.249;
-  port.divReceived = parseFloat(el('editDivRec').value)||0; // total dividend cash received in HKD
+  port.divReceived = parseFloat(el('editDivRec').value)||0;
+  savePort();
 
   const totalCost = port.units * port.cost;
   const mktVal = port.units * liveData.price2802;
@@ -771,7 +875,6 @@ function updatePortfolio(){
   el('portBE').textContent = `$${be.toFixed(3)}`;
   el('portBE').style.color = be<=liveData.price2802?'var(--success)':'var(--warn)';
   el('portYield').textContent = `${annualYield.toFixed(2)}%（年化）`;
-  // Dynamic dividend rows
   el('portDivRec').textContent = divTotal>0 ? `$${divTotal.toFixed(2)}（累計已收現金股息）` : '—（請在下方輸入累計已收股息金額）';
   el('portDivRec').style.color = divTotal>0?'var(--success)':'var(--text-muted)';
   const nextDiv = (port.units * 0.14);
@@ -794,7 +897,6 @@ function updateRiskSignals(){
 
   const signals = [];
 
-  // 1. AUM trend
   if(prev){
     const aumChg = (latest.aum2802-prev.aum2802)/prev.aum2802*100;
     const aumLvl = aumChg<-10?'hi':aumChg<-3?'mid':'low';
@@ -806,23 +908,18 @@ function updateRiskSignals(){
     signals.push({name:'3416 規模趨勢',level:'low',note:'數據不足'});
   }
 
-  // 2. Dividend stability
   const divHistory = historicalData.filter(r=>r.div2802!==null).map(r=>r.div2802);
   const divStable = divHistory.every(d=>d===divHistory[0]);
   signals.push({name:'2802 派息穩定性',level:divStable?'low':'hi',note:divStable?`連續 ${divHistory.length} 個月 $${divHistory[0]}`:'派息有波動，需留意'});
 
-  // 3. Capped status
   const capped = latest.strike && liveData.hscei > latest.strike;
   signals.push({name:'封頂狀態 (Capped)',level:capped?'hi':'low',note:capped?`國指 ${liveData.hscei.toLocaleString()} > 行使價 ${latest.strike?.toLocaleString()||'—'} ⚠️`:`國指低於行使價，暫無封頂`});
 
-  // 4. NAV vs cost
   const navVsCost = (liveData.price2802 - port.cost) / port.cost * 100;
   signals.push({name:'2802 現價 vs 你的成本',level:navVsCost>0?'low':navVsCost>-5?'mid':'hi',note:`${navVsCost>=0?'高出':'低於'}成本 ${Math.abs(navVsCost).toFixed(2)}%`});
 
-  // 5. HSCEI trend
   signals.push({name:'HSCEI 短期走勢',level:liveData.hscei<7500?'hi':liveData.hscei<8000?'mid':'low',note:`當前 ${liveData.hscei.toLocaleString()} 點`});
 
-  // Render
   const tbody = el('riskBody');
   tbody.innerHTML = signals.map(s=>`
     <tr>
@@ -831,7 +928,6 @@ function updateRiskSignals(){
       <td style="color:var(--muted)">${s.note}</td>
     </tr>`).join('');
 
-  // Alert bar
   const hiSignals = signals.filter(s=>s.level==='hi');
   const alertBar = el('alertBar');
   if(hiSignals.length>0){
@@ -846,7 +942,6 @@ function updateRiskSignals(){
 /* ── LOG TABLE ── */
 function renderLog(){
   const tbody = el('logBody');
-  // Build reversed index map so edit/delete can target original array index
   const reversedWithIdx = historicalData.map((r,i)=>({r,i})).reverse();
   tbody.innerHTML = reversedWithIdx.map(({r,i},ri,arr)=>{
     const prev = arr[ri+1]?arr[ri+1].r:null;
@@ -878,7 +973,6 @@ function renderLog(){
 function editRecord(idx){
   const r = historicalData[idx];
   if(!r) return;
-  // Fill add form with this record's values
   el('fMonth').value = r.month;
   el('fNav2802').value = r.nav2802||'';
   el('fNav3416').value = r.nav3416||'';
@@ -888,10 +982,8 @@ function editRecord(idx){
   el('fDiv3416').value = r.div3416||'';
   el('fHscei').value = r.hscei||'';
   el('fStrike').value = r.strike||'';
-  // Show form and scroll to it
   el('addFormBox').style.display='block';
   el('addFormBox').scrollIntoView({behavior:'smooth',block:'nearest'});
-  // Highlight editing state
   el('addFormBox').style.border='2px solid var(--primary)';
 }
 
@@ -901,6 +993,7 @@ function deleteRecord(idx){
   const [y,m]=r.month.split('-');
   if(!confirm(`確認刪除 ${y}年${m}月 的記錄？`)) return;
   historicalData.splice(idx,1);
+  saveHistory();
   renderLog(); updateAllCharts(); updateRiskSignals(); updateKPIs();
 }
 
@@ -927,11 +1020,13 @@ function addRecord(){
   const idx = historicalData.findIndex(r=>r.month===month);
   if(idx>=0) historicalData[idx]=rec; else historicalData.push(rec);
   historicalData.sort((a,b)=>a.month.localeCompare(b.month));
+  saveHistory();
   renderLog();
   updateAllCharts();
   updateRiskSignals();
   updateKPIs();
   el('addFormBox').style.display='none';
+  el('addFormBox').style.border='1px solid var(--border)';
 }
 
 /* ── LIVE FETCH ── */
@@ -943,7 +1038,6 @@ async function fetchLiveData(){
 
   const symbols = ['2802.HK','3416.HK','^HSCE'];
   const YF_URL = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${symbols.join(',')}&fields=regularMarketPrice,regularMarketPreviousClose`;
-  // Try multiple CORS proxies in order
   const PROXIES = [
     'https://corsproxy.io/?url=',
     'https://api.allorigins.win/raw?url=',
@@ -976,7 +1070,7 @@ async function fetchLiveData(){
   if(!success){
     liveData.isLive=false;
     el('lastUpdate').textContent='示範數據 — 點擊下方手動輸入';
-    el('manualPriceBox').style.display='block'; // Show manual input
+    el('manualPriceBox').style.display='block';
   }else{
     const t=liveData.lastUpdated;
     el('lastUpdate').textContent=`即時更新於 ${t.getHours().toString().padStart(2,'0')}:${t.getMinutes().toString().padStart(2,'0')}`;
@@ -1012,13 +1106,17 @@ function el(id){return document.getElementById(id);}
 
 /* ── INIT ── */
 window.addEventListener('DOMContentLoaded',()=>{
+  // Restore portfolio inputs from saved state
+  el('editUnits').value = port.units;
+  el('editCost').value = port.cost;
+  el('editDivRec').value = port.divReceived;
+
   updateKPIs();
   renderLog();
   updateRiskSignals();
   updateAllCharts();
   el('statusDot').className='status-dot demo';
   el('lastUpdate').textContent='示範數據（按「更新數據」獲取即時）';
-  // Auto-fetch on load
   setTimeout(fetchLiveData, 800);
 });
 </script>
