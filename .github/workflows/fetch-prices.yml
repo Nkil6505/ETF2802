@@ -2,7 +2,8 @@ name: Fetch Live Prices
 
 on:
   schedule:
-    - cron: '*/30 1-9 * * 1-5'
+    - cron: '*/30 1-9 * * 1-5'      # 每30分鐘更新 live.json（交易時間）
+    - cron: '0 17 * * 6'             # 每個星期六 01:00 HKT 更新（除淨日翌日）
   workflow_dispatch:
 
 jobs:
@@ -13,54 +14,123 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
       - name: Install yfinance
         run: pip install yfinance --quiet
 
-      - name: Fetch prices via yfinance
+      - name: Fetch prices and update history if ex-date week
         run: |
           python3 - <<'EOF'
           import yfinance as yf
-          import json, datetime, os
+          import json, datetime, os, calendar
 
+          # ── 拉最新報價 ──
           tickers = yf.Tickers('2802.HK 3416.HK ^HSCE')
-          out = {
-            'updatedAt': datetime.datetime.utcnow().isoformat() + 'Z',
-            'prices': {}
-          }
-
-          mapping = {
-            '2802.HK': '2802.HK',
-            '3416.HK': '3416.HK',
-            '^HSCE':   '^HSCE'
-          }
-
-          for sym, key in mapping.items():
+          now_utc = datetime.datetime.utcnow()
+          prices = {}
+          for sym in ['2802.HK', '3416.HK', '^HSCE']:
             try:
               info = tickers.tickers[sym].fast_info
-              out['prices'][key] = {
+              prices[sym] = {
                 'price': round(float(info.last_price), 4),
                 'prev':  round(float(info.previous_close), 4),
                 'time':  None
               }
-              print(f'{sym}: {info.last_price}')
+              print(f'{sym}: {prices[sym]["price"]}')
             except Exception as e:
-              print(f'Error fetching {sym}: {e}')
+              print(f'Error {sym}: {e}')
 
-          if not out['prices']:
-            print('No data fetched, aborting')
+          if not prices:
+            print('No price data, abort')
             exit(1)
 
+          # ── 更新 live.json ──
           os.makedirs('data', exist_ok=True)
+          live = {'updatedAt': now_utc.isoformat() + 'Z', 'prices': prices}
           with open('data/live.json', 'w') as f:
-            json.dump(out, f, indent=2)
-          print('Done:', out)
+            json.dump(live, f, indent=2)
+          print('live.json updated')
+
+          # ── 判斷今日係咩日（HKT = UTC+8）──
+          hkt = now_utc + datetime.timedelta(hours=8)
+          today = hkt.date()
+
+          # 計算今個月第3個星期五
+          def third_friday(year, month):
+            count = 0
+            for day in range(1, 32):
+              try:
+                d = datetime.date(year, month, day)
+              except:
+                break
+              if d.weekday() == 4:  # Friday
+                count += 1
+                if count == 3:
+                  return d
+            return None
+
+          ex_date = third_friday(today.year, today.month)
+          # 除淨日翌日（即星期六）才寫 history
+          is_ex_next_day = (today == ex_date + datetime.timedelta(days=1)) if ex_date else False
+          # 或者係月最後一日（月底 fallback）
+          last_day = datetime.date(today.year, today.month, calendar.monthrange(today.year, today.month)[1])
+          is_month_end = (today == last_day)
+
+          if not (is_ex_next_day or is_month_end):
+            print(f'Not ex-date+1 ({ex_date+datetime.timedelta(days=1) if ex_date else "N/A"}) or month-end ({last_day}), skip history update')
+          else:
+            print(f'Auto-updating history for {today.year}-{str(today.month).zfill(2)}')
+            # 讀現有 history.json
+            hist_path = 'data/history.json'
+            try:
+              with open(hist_path) as f:
+                history = json.load(f)
+            except:
+              history = []
+
+            month_key = f'{today.year}-{str(today.month).zfill(2)}'
+            # 揀上個月（因為除淨日係當月但數據係當月月末）
+            # 注意：除淨日後翌日，月份仍係同月，用當月 key
+            existing = next((r for r in history if r['month'] == month_key), None)
+
+            nav2802 = prices.get('2802.HK', {}).get('price')
+            nav3416 = prices.get('3416.HK', {}).get('price')
+            hscei   = prices.get('^HSCE', {}).get('price')
+
+            # AUM 要從 HKEX 拉，暫時用 None（需手動補）
+            new_rec = {
+              'month':   month_key,
+              'nav2802': nav2802,
+              'nav3416': nav3416,
+              'aum2802': existing.get('aum2802') if existing else None,
+              'aum3416': existing.get('aum3416') if existing else None,
+              'div2802': 0.14,   # 預設，若改變需手動改
+              'div3416': 0.14,
+              'hscei':   round(hscei) if hscei else None,
+              'strike':  existing.get('strike') if existing else None,
+              'src':     'auto'
+            }
+
+            if existing:
+              history = [new_rec if r['month'] == month_key else r for r in history]
+              print(f'Updated existing record: {month_key}')
+            else:
+              history.append(new_rec)
+              history.sort(key=lambda r: r['month'])
+              print(f'Added new record: {month_key}')
+
+            with open(hist_path, 'w') as f:
+              json.dump(history, f, indent=2)
+            print('history.json updated')
+
           EOF
 
       - name: Commit and push
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/live.json
-          git diff --staged --quiet || git commit -m "chore: update live prices $(date -u '+%Y-%m-%d %H:%M') UTC"
+          git add data/live.json data/history.json
+          git diff --staged --quiet || git commit -m "chore: auto-update prices/history $(date -u '+%Y-%m-%d %H:%M') UTC"
           git push
