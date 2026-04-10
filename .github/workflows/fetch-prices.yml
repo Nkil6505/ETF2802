@@ -2,7 +2,7 @@ name: Fetch Live Prices
 
 on:
   schedule:
-    - cron: '*,15 1-9 * * 1-5'      # 每15分鐘更新 live.json（交易時間）
+    - cron: '*/30 1-9 * * 1-5'      # 每15分鐘更新 live.json（交易時間）
     - cron: '0 17 * * 6'             # 每個星期六 01:00 HKT 更新（除淨日翌日）
   workflow_dispatch:
 
