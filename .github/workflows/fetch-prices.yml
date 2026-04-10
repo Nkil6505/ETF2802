@@ -1,4 +1,5 @@
 name: Fetch Live Prices
+# Auto-update every 15 minutes during trading hours
 
 on:
   schedule:
