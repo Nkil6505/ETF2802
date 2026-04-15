@@ -468,8 +468,8 @@ canvas{display:block;width:100%!important}
             <input type="number" id="editUnits" value="400" onchange="updatePortfolio()">
           </div>
           <div class="form-group">
-            <label class="form-label">平均成本</label>
-            <input type="number" id="editCost" value="8.249" step="0.001" onchange="updatePortfolio()">
+            <label class="form-label">原始買入均價</label>
+            <input type="number" id="editCost" value="8.249" step="0.001" onchange="updatePortfolio()"><button type="button" onclick="autoFillEffectiveCost()" style="margin-top:4px;width:100%;padding:4px 8px;font-size:.72rem;border-radius:4px;border:1px dashed var(--primary);color:var(--primary);background:transparent;cursor:pointer;" title="自動將有效回本價填入上方欄位">⟳ 自動套用有效回本價</button>
           </div>
           <div class="form-group">
             <label class="form-label">已收股息價值 (HKD)</label>
@@ -949,7 +949,7 @@ function updatePortfolio(){
   buildBEChart();
 }
 
-/* ── RISK SIGNALS ── */
+/* ── AUTO FILL EFFECTIVE COST ── */ function autoFillEffectiveCost(){   const units = parseFloat(el('editUnits').value)||400;   const rawCost = parseFloat(el('editCost').value)||8.249;   const divRec = parseFloat(el('editDivRec').value)||0;   const totalCost = units * rawCost;   const effectiveCost = units > 0 ? (totalCost - divRec) / units : rawCost;   el('editCost').value = effectiveCost.toFixed(3);   updatePortfolio(); }  /* ── RISK SIGNALS ── */
 function updateRiskSignals(){
   const latest = historicalData[historicalData.length-1];
   const prev = historicalData.length>1?historicalData[historicalData.length-2]:null;
