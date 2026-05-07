@@ -5,7 +5,7 @@ on:
   schedule:
         - cron: '*/15 1-9 * * 1-5'  # 每15分鐘更新 live.json (交易時間 09:00-17:59 HKT = 01:00-09:59 UTC)
 
-        - cron: '0 17 * * 6'  # 每個星期六 01:00 HKT 更新（除淨日翌日）
+        - cron: '0 17 * * 5'  # 每個星期六 01:00 HKT 更新（除淨日翌日）
   workflow_dispatch:
 
 jobs:
