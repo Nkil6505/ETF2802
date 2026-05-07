@@ -256,8 +256,7 @@ canvas{display:block;width:100%!important}
       <div class="kpi-label">你的組合 淨損益</div>
       <div class="kpi-value num" id="kpiPortPnl">—</div>
       <div class="kpi-sub" id="kpiPortSub"></div>
-    </div>         
-            </div>         
+    </div>
       <div class="kpi-card cportfolio">           
         <div class="kpi-label">下次除淨日 (Est.)</div>           
         <div class="kpi-value num" id="kpiExDate" style="font-size:var(--text-lg)">—</div>
@@ -267,6 +266,7 @@ canvas{display:block;width:100%!important}
           <span id="kpiPayDate" style="color:var(--muted)">—</span>
         </div>
       </div>
+  </div>
   <!-- Charts -->
   <div class="charts-grid">
     <!-- Price Chart -->
@@ -903,7 +903,7 @@ function updateExDate(){
 
   // 更新派息日副標題
   const payEl = document.getElementById('kpiPayDate');
-  if(payEl) payEl.textContent = `派息日(Est.): ${fmt(payDate)}`;
+  if(payEl) payEl.textContent = fmt(payDate);
 }
 
   
@@ -954,6 +954,7 @@ function updatePortfolio(){
 function updateRiskSignals(){
   const latest = historicalData[historicalData.length-1];
   const prev = historicalData.length>1?historicalData[historicalData.length-2]:null;
+  const latestStrike = getStrike(latest);
 
   const signals = [];
 
@@ -972,8 +973,8 @@ function updateRiskSignals(){
   const divStable = divHistory.every(d=>d===divHistory[0]);
   signals.push({name:'2802 派息穩定性',level:divStable?'low':'hi',note:divStable?`連續 ${divHistory.length} 個月 $${divHistory[0]}`:'派息有波動，需留意'});
 
-  const capped = latest.strike && liveData.hscei > latest.strike;
-  signals.push({name:'封頂狀態 (Capped)',level:capped?'hi':'low',note:capped?`國指 ${liveData.hscei.toLocaleString()} > 行使價 ${latest.strike?.toLocaleString()||'—'} ⚠️`:`國指低於行使價，暫無封頂`});
+  const capped = hasValue(latestStrike) && liveData.hscei > latestStrike;
+  signals.push({name:'封頂狀態 (Capped)',level:capped?'hi':'low',note:capped?`國指 ${liveData.hscei.toLocaleString()} > 行使價 ${latestStrike.toLocaleString()} ⚠️`:`國指低於行使價，暫無封頂`});
 
   const navVsCost = (liveData.price2802 - port.cost) / port.cost * 100;
   signals.push({name:'2802 現價 vs 你的成本',level:navVsCost>0?'low':navVsCost>-5?'mid':'hi',note:`${navVsCost>=0?'高出':'低於'}成本 ${Math.abs(navVsCost).toFixed(2)}%`});
@@ -1007,20 +1008,21 @@ function renderLog(){
     const prev = arr[ri+1]?arr[ri+1].r:null;
     const aumChg = prev&&prev.aum2802!=null&&r.aum2802!=null ? r.aum2802-prev.aum2802 : null;
     const aumTrend = aumChg===null?'—':aumChg>0?`<span class="delta up">▲+${aumChg.toFixed(1)}</span>`:`<span class="delta down">▼${aumChg.toFixed(1)}</span>`;
-    const capped = r.strike&&r.hscei>r.strike;
+    const strike = getStrike(r);
+    const capped = hasValue(strike) && hasValue(r.hscei) && r.hscei>strike;
     const [y,m]=r.month.split('-');
     return `<tr id="logRow_${i}">
       <td>${y}年${m}月</td>
-      <td>${r.nav2802?`$${r.nav2802.toFixed(3)}`:'—'}</td>
+      <td>${hasValue(r.nav2802)?`$${r.nav2802.toFixed(3)}`:'—'}</td>
       <td>${r.aum2802!=null?r.aum2802+' 億':'—'}</td>
       <td>${aumTrend}</td>
-      <td>${r.div2802?`$${r.div2802.toFixed(2)}`:'—'}</td>
-      <td>${r.nav3416?`$${r.nav3416.toFixed(3)}`:'—'}</td>
+      <td>${hasValue(r.div2802)?`$${r.div2802.toFixed(2)}`:'—'}</td>
+      <td>${hasValue(r.nav3416)?`$${r.nav3416.toFixed(3)}`:'—'}</td>
       <td>${r.aum3416!=null?r.aum3416+' 億':'—'}</td>
-      <td>${r.div3416?`$${r.div3416.toFixed(2)}`:'—'}</td>
-      <td>${r.hscei?r.hscei.toLocaleString():'—'}</td>
-      <td>${r.strike?r.strike.toLocaleString():'—'}</td>
-      <td>${r.strike?(capped?'<span class="risk-badge badge-hi">封頂</span>':'<span class="risk-badge badge-low">未封頂</span>'):'—'}</td>
+      <td>${hasValue(r.div3416)?`$${r.div3416.toFixed(2)}`:'—'}</td>
+      <td>${hasValue(r.hscei)?r.hscei.toLocaleString():'—'}</td>
+      <td>${hasValue(strike)?strike.toLocaleString():'—'}</td>
+      <td>${hasValue(strike)?(capped?'<span class="risk-badge badge-hi">封頂</span>':'<span class="risk-badge badge-low">未封頂</span>'):'—'}</td>
       <td><span class="tag tag-${r.src==='auto'?'auto':'manual'}">${r.src==='auto'?'自動':'手動'}</span></td>
       <td style="white-space:nowrap;display:flex;gap:4px;padding:6px 8px">
         <button onclick="editRecord(${i})" title="編輯" style="padding:3px 7px;font-size:.7rem;background:var(--surface-off);border:1px solid var(--border);border-radius:4px;color:var(--primary);cursor:pointer">✏️</button>
@@ -1034,14 +1036,14 @@ function editRecord(idx){
   const r = historicalData[idx];
   if(!r) return;
   el('fMonth').value = r.month;
-  el('fNav2802').value = r.nav2802||'';
-  el('fNav3416').value = r.nav3416||'';
-  el('fAum2802').value = r.aum2802||'';
-  el('fAum3416').value = r.aum3416||'';
-  el('fDiv2802').value = r.div2802||'';
-  el('fDiv3416').value = r.div3416||'';
-  el('fHscei').value = r.hscei||'';
-  el('fStrike').value = r.strike||'';
+  el('fNav2802').value = hasValue(r.nav2802)?r.nav2802:'';
+  el('fNav3416').value = hasValue(r.nav3416)?r.nav3416:'';
+  el('fAum2802').value = hasValue(r.aum2802)?r.aum2802:'';
+  el('fAum3416').value = hasValue(r.aum3416)?r.aum3416:'';
+  el('fDiv2802').value = hasValue(r.div2802)?r.div2802:'';
+  el('fDiv3416').value = hasValue(r.div3416)?r.div3416:'';
+  el('fHscei').value = hasValue(r.hscei)?r.hscei:'';
+  el('fStrike').value = hasValue(getStrike(r))?getStrike(r):'';
   el('addFormBox').style.display='block';
   el('addFormBox').scrollIntoView({behavior:'smooth',block:'nearest'});
   el('addFormBox').style.border='2px solid var(--primary)';
@@ -1067,14 +1069,14 @@ function addRecord(){
   if(!month){alert('請選擇月份');return;}
   const rec = {
     month,
-    nav2802: parseFloat(el('fNav2802').value)||null,
-    nav3416: parseFloat(el('fNav3416').value)||null,
-    aum2802: parseFloat(el('fAum2802').value)||null,
-    aum3416: parseFloat(el('fAum3416').value)||null,
-    div2802: parseFloat(el('fDiv2802').value)||null,
-    div3416: parseFloat(el('fDiv3416').value)||null,
-    hscei: parseFloat(el('fHscei').value)||null,
-    strike: parseFloat(el('fStrike').value)||null,
+    nav2802: parseNullableNumber(el('fNav2802').value),
+    nav3416: parseNullableNumber(el('fNav3416').value),
+    aum2802: parseNullableNumber(el('fAum2802').value),
+    aum3416: parseNullableNumber(el('fAum3416').value),
+    div2802: parseNullableNumber(el('fDiv2802').value),
+    div3416: parseNullableNumber(el('fDiv3416').value),
+    hscei: parseNullableNumber(el('fHscei').value),
+    strike: parseNullableNumber(el('fStrike').value),
     src:'manual'
   };
   const idx = historicalData.findIndex(r=>r.month===month);
@@ -1196,6 +1198,17 @@ function applyManualPrices(){
 
 /* ── UTILS ── */
 function el(id){return document.getElementById(id);}
+function hasValue(v){return v !== null && v !== undefined && v !== '';}
+function parseNullableNumber(v){
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : null;
+}
+function getStrike(r){return hasValue(r?.strike) ? r.strike : r?.s50;}
+
+function startAutoRefresh(){
+  if(autoRefreshTimer) clearInterval(autoRefreshTimer);
+  autoRefreshTimer = setInterval(fetchLiveData, AUTO_REFRESH_MS);
+}
 
 /* ── INIT ── */
 window.addEventListener('DOMContentLoaded',()=>{
