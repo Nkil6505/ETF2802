@@ -1,8 +1,8 @@
 {
-  "updatedAt": "2026-07-21T07:12:07.930346Z",
+  "updatedAt": "2026-07-21T09:42:17.555612Z",
   "prices": {
     "2802.HK": {
-      "price": 7.285,
+      "price": 7.29,
       "prev": 7.28,
       "time": null
     },
@@ -12,7 +12,7 @@
       "time": null
     },
     "^HSCE": {
-      "price": 8373.5098,
+      "price": 8360.6797,
       "prev": 8381.9004,
       "time": null
     }
