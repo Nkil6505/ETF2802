@@ -1,0 +1,257 @@
+{
+  "portfolio_config": {
+    "_schema": "Portfolio configuration",
+    "portfolio_id": "portfolio_v2",
+    "strategy_defaults": {
+      "min_core_income_pct": 0.3,
+      "dividend_play_pct": 0.3,
+      "profit_take_pct_of_profitable_lot": 0.3,
+      "use_dynamic_stop_loss": true,
+      "dynamic_stop_loss_levels": {
+        "core_income": -0.035,
+        "dca_growth": -0.05,
+        "dividend_play": -0.05
+      }
+    },
+    "risk_settings": {
+      "max_drawdown_per_position": -0.05,
+      "max_drawdown_portfolio": -0.1
+    }
+  },
+  "position_lots": {
+    "_schema": "Position lots source of truth",
+    "last_updated": "2026-07-05T15:40:00+08:00",
+    "lots": [
+      {
+        "lot_id": "LOT-20260608-001",
+        "ticker": "2802.HK",
+        "bucket": "core_income",
+        "account": "uSMART",
+        "broker": "uSMART",
+        "currency": "HKD",
+        "original_quantity": 150,
+        "remaining_quantity": 150,
+        "sold_quantity": 0,
+        "status": "open",
+        "entry_date": "2026-06-08",
+        "entry_price": 7.1,
+        "gross_entry_amount": 1065.0,
+        "fees": 0.5,
+        "net_entry_amount": 1065.5,
+        "net_cost_per_share": 7.1033,
+        "fx_rate_to_cny_at_entry": 0.92,
+        "tag": "A點入貨",
+        "notes": "Core income lot"
+      },
+      {
+        "lot_id": "LOT-20260615-002",
+        "ticker": "2802.HK",
+        "bucket": "dca_growth",
+        "account": "uSMART",
+        "broker": "uSMART",
+        "currency": "HKD",
+        "original_quantity": 200,
+        "remaining_quantity": 200,
+        "sold_quantity": 0,
+        "status": "open",
+        "entry_date": "2026-06-15",
+        "entry_price": 7.1225,
+        "gross_entry_amount": 1424.5,
+        "fees": 0.6,
+        "net_entry_amount": 1425.1,
+        "net_cost_per_share": 7.1255,
+        "fx_rate_to_cny_at_entry": 0.92,
+        "tag": "A點入貨",
+        "notes": "DCA growth lot"
+      },
+      {
+        "lot_id": "LOT-20260622-003",
+        "ticker": "2802.HK",
+        "bucket": "dividend_play",
+        "account": "uSMART",
+        "broker": "uSMART",
+        "currency": "HKD",
+        "original_quantity": 150,
+        "remaining_quantity": 105,
+        "sold_quantity": 45,
+        "status": "partial",
+        "entry_date": "2026-06-22",
+        "entry_price": 7.15,
+        "gross_entry_amount": 1072.5,
+        "fees": 0.45,
+        "net_entry_amount": 1072.95,
+        "net_cost_per_share": 7.153,
+        "fx_rate_to_cny_at_entry": 0.92,
+        "tag": "除息短線入貨",
+        "notes": "Dividend play lot; 45 shares sold at B point"
+      }
+    ]
+  },
+  "trade_transactions": {
+    "_schema": "Trade transactions record",
+    "last_updated": "2026-07-05T15:45:00+08:00",
+    "transactions": [
+      {
+        "tx_id": "TX-20260608-001",
+        "timestamp": "2026-06-08T09:00:00+08:00",
+        "ticker": "2802.HK",
+        "account": "uSMART",
+        "broker": "uSMART",
+        "currency": "HKD",
+        "action": "buy",
+        "lot_id": "LOT-20260608-001",
+        "price": 7.1,
+        "quantity": 150,
+        "gross_amount": 1065.0,
+        "fees": 0.5,
+        "net_amount": 1065.5,
+        "tag": "A點入貨"
+      },
+      {
+        "tx_id": "TX-20260615-002",
+        "timestamp": "2026-06-15T09:00:00+08:00",
+        "ticker": "2802.HK",
+        "account": "uSMART",
+        "broker": "uSMART",
+        "currency": "HKD",
+        "action": "buy",
+        "lot_id": "LOT-20260615-002",
+        "price": 7.1225,
+        "quantity": 200,
+        "gross_amount": 1424.5,
+        "fees": 0.6,
+        "net_amount": 1425.1,
+        "tag": "A點入貨"
+      },
+      {
+        "tx_id": "TX-20260622-003",
+        "timestamp": "2026-06-22T09:00:00+08:00",
+        "ticker": "2802.HK",
+        "account": "uSMART",
+        "broker": "uSMART",
+        "currency": "HKD",
+        "action": "buy",
+        "lot_id": "LOT-20260622-003",
+        "price": 7.15,
+        "quantity": 150,
+        "gross_amount": 1072.5,
+        "fees": 0.45,
+        "net_amount": 1072.95,
+        "tag": "除息短線入貨"
+      },
+      {
+        "tx_id": "TX-20260705-004",
+        "timestamp": "2026-07-05T10:00:00+08:00",
+        "ticker": "2802.HK",
+        "account": "uSMART",
+        "broker": "uSMART",
+        "currency": "HKD",
+        "action": "profit_take",
+        "price": 7.3,
+        "quantity": 45,
+        "gross_amount": 328.5,
+        "fees": 0.27,
+        "net_amount": 328.23,
+        "linked_lots": [
+          {
+            "lot_id": "LOT-20260622-003",
+            "sell_quantity": 45,
+            "net_cost_per_share": 7.153,
+            "sell_price": 7.3,
+            "sale_proceeds": 328.5,
+            "cost_basis": 321.89,
+            "gross_realized_pnl": 6.62,
+            "fees_allocated": 0.27,
+            "net_realized_pnl": 6.35
+          }
+        ],
+        "source_bucket": "dividend_play",
+        "tag": "B點止賺",
+        "notes": "Sold 30% of profitable dividend_play lot"
+      }
+    ]
+  },
+  "dividend_records": {
+    "_schema": "Dividend records source of truth",
+    "dividends": [
+      {
+        "dividend_id": "DIV-202606-001",
+        "ticker": "2802.HK",
+        "month": "2026-06",
+        "ex_date": "2026-06-30",
+        "pay_date": "2026-07-07",
+        "currency": "HKD",
+        "amount_per_share": 0.15,
+        "eligible_quantity": 255,
+        "gross_dividend": 38.25,
+        "tax_withheld": 0.0,
+        "net_dividend": 38.25,
+        "linked_lots": [
+          {
+            "lot_id": "LOT-20260608-001",
+            "bucket": "core_income",
+            "eligible_quantity": 150
+          },
+          {
+            "lot_id": "LOT-20260622-003",
+            "bucket": "dividend_play",
+            "eligible_quantity": 105
+          }
+        ]
+      }
+    ]
+  },
+  "covered_call_events": {
+    "_schema": "Covered call ETF events",
+    "events": [
+      {
+        "event_id": "CC-202607-001",
+        "ticker": "2802.HK",
+        "underlying": "HSCEI",
+        "month": "2026-07",
+        "hscei_level": 7699.76,
+        "strike_or_cap_level": 7700.0,
+        "distance_to_cap_pct": -0.0031,
+        "cap_status": "red",
+        "alert_action": "consider_profit_take",
+        "ex_date": "2026-07-30",
+        "pay_date": null,
+        "distribution_per_unit": 0.15,
+        "notes": "Underlying is slightly below cap"
+      }
+    ]
+  },
+  "derived_portfolio_snapshot": {
+    "_schema": "Derived portfolio snapshot",
+    "derived_only": true,
+    "last_updated": "2026-07-05T15:35:00+08:00",
+    "positions": [
+      {
+        "ticker": "2802.HK",
+        "account": "uSMART",
+        "currency": "HKD",
+        "original_quantity": 500,
+        "remaining_quantity": 455,
+        "sold_quantity": 45,
+        "current_price": 7.12,
+        "market_value": 3239.6,
+        "total_cost_basis_remaining": 3241.67,
+        "unrealized_pnl": -2.07,
+        "realized_pnl": 6.35,
+        "net_dividends_received": 38.25,
+        "core_income_qty": 150,
+        "dca_growth_qty": 200,
+        "dividend_play_original_qty": 150,
+        "dividend_play_sold_qty": 45,
+        "dividend_play_remaining_qty": 105,
+        "core_income_pct_of_original": 0.3,
+        "dividend_play_pct_of_original": 0.3,
+        "latest_cap_status": "red",
+        "next_alerts": [
+          "CAP_RED_CONSIDER_PROFIT_TAKE",
+          "DIVIDEND_PLAY_REVIEW_AFTER_PAY_DATE"
+        ]
+      }
+    ]
+  }
+}
