@@ -235,7 +235,7 @@ canvas{display:block;width:100%!important}
     <div class="kpi-card c3416">
       <div class="kpi-label">3416 現價 / NAV</div>
       <div class="kpi-value num" id="kpi3416Price">$—</div>
-      <div class="kpi-sub"><span class="delta" id="kpi3416Delta">—</span><span>Global X 國指 CC ETF</span></div>
+      <div class="kpi-sub"><span class="delta" id="kpi3416Delta">—</span><span id="kpi3416Sub">Global X 國指 CC ETF</span></div>
     </div>
     <div class="kpi-card chscei">
       <div class="kpi-label">HSCEI 國企指數</div>
@@ -256,6 +256,11 @@ canvas{display:block;width:100%!important}
       <div class="kpi-label">你的組合 淨損益</div>
       <div class="kpi-value num" id="kpiPortPnl">—</div>
       <div class="kpi-sub" id="kpiPortSub"></div>
+    </div>
+    <div class="kpi-card csuccess">
+      <div class="kpi-label">買入提示訊號</div>
+      <div class="kpi-value" id="kpiBuySignal" style="font-size:var(--text-lg)">—</div>
+      <div class="kpi-sub"><span id="kpiBuySub">設定目標買入價後自動提示</span></div>
     </div>
       <div class="kpi-card cportfolio">           
         <div class="kpi-label">下次除淨日 (Est.)</div>           
@@ -461,7 +466,6 @@ canvas{display:block;width:100%!important}
       <div class="port-row"><span class="port-label">有效回本價</span><span class="port-val num" id="portBE">$8.109</span></div>
       <div class="port-row"><span class="port-label">年化收益率（以成本計）</span><span class="port-val num" id="portYield">—</span></div>
       <div style="margin-top:var(--sp4);padding-top:var(--sp4);border-top:1px solid var(--border)">
-        <div class="form-label" style="margin-bottom:var(--sp2)">470</div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp2)">
                     <button onclick="openBuyCalculator()" style="margin:10px 0;padding:8px 16px;background:var(--success);color:white;border:none;border-radius:4px;cursor:pointer;">➕ 記錄新買入</button>
           <div class="form-group">
@@ -478,6 +482,23 @@ canvas{display:block;width:100%!important}
           </div>
         </div>
         <div style="margin-top:var(--sp2);color:var(--muted);font-size:var(--text-xs)">說明：這裡輸入的是你帳戶已累計收到的股息現金總額（HKD），不是每股股息。</div>
+        <div style="margin-top:var(--sp4);padding-top:var(--sp4);border-top:1px dashed var(--border)">
+          <div class="form-label" style="margin-bottom:var(--sp2)">買入提示設定</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--sp2)">
+            <div class="form-group">
+              <label class="form-label">2802 目標買入價</label>
+              <input type="number" id="alertTarget2802" value="8.000" step="0.001" onchange="updateAlertSettings()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">3416 目標買入價</label>
+              <input type="number" id="alertTarget3416" value="9.300" step="0.001" onchange="updateAlertSettings()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">接近提示緩衝(%)</label>
+              <input type="number" id="alertBuffer" value="0.50" step="0.1" min="0" onchange="updateAlertSettings()">
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -526,6 +547,7 @@ canvas{display:block;width:100%!important}
 /* ── STORAGE KEYS ── */
 const LS_HISTORY = 'etf2802_history';
 const LS_PORT    = 'etf2802_port';
+const LS_ALERTS  = 'etf2802_alerts';
 
 /* ── SEED DATA (only used on first load) ── */
 const SEED_DATA = [
@@ -558,6 +580,23 @@ function loadPort(){
   return { units: 400, cost: 8.249, divReceived: 0.00 };
 }
 
+function loadAlerts(){
+  try{
+    const raw = localStorage.getItem(LS_ALERTS);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      if(parsed && typeof parsed === 'object'){
+        return {
+          target2802: Number.isFinite(parsed.target2802) ? parsed.target2802 : 8.00,
+          target3416: Number.isFinite(parsed.target3416) ? parsed.target3416 : 9.30,
+          bufferPct: Number.isFinite(parsed.bufferPct) ? parsed.bufferPct : 0.5
+        };
+      }
+    }
+  }catch(e){ console.warn('loadAlerts error', e); }
+  return { target2802: 8.00, target3416: 9.30, bufferPct: 0.5 };
+}
+
 /* ── SAVE TO localStorage ── */
 function saveHistory(){
   try{
@@ -572,6 +611,12 @@ function savePort(){
   }catch(e){ console.warn('savePort error', e); }
 }
 
+function saveAlerts(){
+  try{
+    localStorage.setItem(LS_ALERTS, JSON.stringify(alertSettings));
+  }catch(e){ console.warn('saveAlerts error', e); }
+}
+
 function flashStorageBadge(){
   const badge = document.getElementById('storageBadge');
   if(!badge) return;
@@ -581,7 +626,7 @@ function flashStorageBadge(){
 
 /* ── EXPORT / IMPORT ── */
 function exportData(){
-  const payload = { historicalData, port, exportedAt: new Date().toISOString() };
+  const payload = { historicalData, port, alertSettings, exportedAt: new Date().toISOString() };
   const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -612,6 +657,15 @@ function importData(event){
         el('editDivRec').value = port.divReceived;
         savePort();
       }
+      if(payload.alertSettings && typeof payload.alertSettings === 'object'){
+        alertSettings.target2802 = Number.isFinite(payload.alertSettings.target2802) ? payload.alertSettings.target2802 : alertSettings.target2802;
+        alertSettings.target3416 = Number.isFinite(payload.alertSettings.target3416) ? payload.alertSettings.target3416 : alertSettings.target3416;
+        alertSettings.bufferPct = Number.isFinite(payload.alertSettings.bufferPct) ? payload.alertSettings.bufferPct : alertSettings.bufferPct;
+        el('alertTarget2802').value = alertSettings.target2802;
+        el('alertTarget3416').value = alertSettings.target3416;
+        el('alertBuffer').value = alertSettings.bufferPct;
+        saveAlerts();
+      }
       renderLog(); updateAllCharts(); updateRiskSignals(); updateKPIs();
       alert(`✅ 匯入成功！共 ${historicalData.length} 筆月度記錄`);
     }catch(err){
@@ -626,6 +680,7 @@ function importData(event){
 /* ── MUTABLE DATA ── */
 const historicalData = loadHistory();
 let port = loadPort();
+let alertSettings = loadAlerts();
 
 /* ── AUTO-REFRESH ── */
 let autoRefreshTimer = null;
@@ -832,31 +887,70 @@ function setRange(r, el){
   buildPriceChart();
 }
 
+function calcPremiumDiscount(price, nav){
+  if(!Number.isFinite(price) || !Number.isFinite(nav) || nav === 0) return null;
+  return (price - nav) / nav * 100;
+}
+
+function calcBuySignal(price, target, bufferPct){
+  if(!Number.isFinite(price) || !Number.isFinite(target) || !Number.isFinite(bufferPct)){
+    return { level: 'none', diffPct: null };
+  }
+  const diffPct = (price - target) / target * 100;
+  const nearPrice = target * (1 + bufferPct / 100);
+  if(price <= target) return { level: 'strong', diffPct };
+  if(price <= nearPrice) return { level: 'near', diffPct };
+  return { level: 'none', diffPct };
+}
+
+function signalText(signal){
+  if(signal.level === 'strong') return '✅ 已到買入價';
+  if(signal.level === 'near') return '⚠ 接近買入價';
+  return '觀望中';
+}
+
 /* ── KPI UPDATE ── */
 function updateKPIs(){
   const p = liveData;
   const d = p.prev2802 ? ((p.price2802-p.prev2802)/p.prev2802*100) : 0;
   const d3 = p.prev3416 ? ((p.price3416-p.prev3416)/p.prev3416*100) : 0;
   const dH = p.prevHscei ? ((p.hscei-p.prevHscei)/p.prevHscei*100) : 0;
+  const latest = historicalData[historicalData.length-1];
+  const premium2802 = calcPremiumDiscount(p.price2802, latest?.nav2802);
+  const premium3416 = calcPremiumDiscount(p.price3416, latest?.nav3416);
 
   el('kpi2802Price').textContent = `$${p.price2802.toFixed(3)}`;
   el('kpi2802Delta').textContent = d>=0?`▲ ${d.toFixed(2)}%`:`▼ ${Math.abs(d).toFixed(2)}%`;
   el('kpi2802Delta').className = 'delta '+(d>0?'up':d<0?'down':'flat');
+  if(premium2802===null){
+    el('kpi2802Sub').textContent = '南方東英國指 CC ETF';
+  }else{
+    el('kpi2802Sub').textContent = `${premium2802>=0?'溢價':'折讓'} ${Math.abs(premium2802).toFixed(2)}%`;
+  }
 
   el('kpi3416Price').textContent = `$${p.price3416.toFixed(3)}`;
   el('kpi3416Delta').textContent = d3>=0?`▲ ${d3.toFixed(2)}%`:`▼ ${Math.abs(d3).toFixed(2)}%`;
   el('kpi3416Delta').className = 'delta '+(d3>0?'up':d3<0?'down':'flat');
+  if(premium3416===null){
+    el('kpi3416Sub').textContent = 'Global X 國指 CC ETF';
+  }else{
+    el('kpi3416Sub').textContent = `${premium3416>=0?'溢價':'折讓'} ${Math.abs(premium3416).toFixed(2)}%`;
+  }
 
   el('kpiHSCEI').textContent = p.hscei.toLocaleString();
   el('kpiHsceiDelta').textContent = dH>=0?`▲ ${dH.toFixed(2)}%`:`▼ ${Math.abs(dH).toFixed(2)}%`;
   el('kpiHsceiDelta').className = 'delta '+(dH>0?'up':dH<0?'down':'flat');
 
-  const latest = historicalData[historicalData.length-1];
   el('kpiAum2802').textContent = `${latest.aum2802}`;
   const prevAum = historicalData.length>1?historicalData[historicalData.length-2].aum2802:latest.aum2802;
   const aumChg = latest.aum2802 - prevAum;
   el('kpiAumDelta2802').textContent = (aumChg>=0?'▲ +':' ▼ ')+Math.abs(aumChg).toFixed(1);
   el('kpiAumDelta2802').className='delta '+(aumChg>0?'up':aumChg<0?'down':'flat');
+
+  const buy2802 = calcBuySignal(p.price2802, alertSettings.target2802, alertSettings.bufferPct);
+  const buy3416 = calcBuySignal(p.price3416, alertSettings.target3416, alertSettings.bufferPct);
+  el('kpiBuySignal').textContent = `2802 ${signalText(buy2802)} · 3416 ${signalText(buy3416)}`;
+  el('kpiBuySub').textContent = `目標價 2802 $${alertSettings.target2802.toFixed(3)} · 3416 $${alertSettings.target3416.toFixed(3)}（緩衝 ±${alertSettings.bufferPct.toFixed(2)}%）`;
 
   updatePortfolio();
   updateExDate() ;
@@ -950,7 +1044,30 @@ function updatePortfolio(){
   buildBEChart();
 }
 
-/* ── AUTO FILL EFFECTIVE COST ── */ function autoFillEffectiveCost(){   const units = parseFloat(el('editUnits').value)||400;   const rawCost = parseFloat(el('editCost').value)||8.249;   const divRec = parseFloat(el('editDivRec').value)||0;   const totalCost = units * rawCost;   const effectiveCost = units > 0 ? (totalCost - divRec) / units : rawCost;   el('editCost').value = effectiveCost.toFixed(3);   updatePortfolio(); }  /* ── RISK SIGNALS ── */
+/* ── AUTO FILL EFFECTIVE COST ── */
+function autoFillEffectiveCost(){
+  const units = parseFloat(el('editUnits').value)||400;
+  const rawCost = parseFloat(el('editCost').value)||8.249;
+  const divRec = parseFloat(el('editDivRec').value)||0;
+  const totalCost = units * rawCost;
+  const effectiveCost = units > 0 ? (totalCost - divRec) / units : rawCost;
+  el('editCost').value = effectiveCost.toFixed(3);
+  updatePortfolio();
+}
+
+function updateAlertSettings(){
+  const target2802 = parseFloat(el('alertTarget2802').value);
+  const target3416 = parseFloat(el('alertTarget3416').value);
+  const bufferPct = parseFloat(el('alertBuffer').value);
+  if(Number.isFinite(target2802)) alertSettings.target2802 = target2802;
+  if(Number.isFinite(target3416)) alertSettings.target3416 = target3416;
+  if(Number.isFinite(bufferPct) && bufferPct >= 0) alertSettings.bufferPct = bufferPct;
+  saveAlerts();
+  updateKPIs();
+  updateRiskSignals();
+}
+
+/* ── RISK SIGNALS ── */
 function updateRiskSignals(){
   const latest = historicalData[historicalData.length-1];
   const prev = historicalData.length>1?historicalData[historicalData.length-2]:null;
@@ -978,6 +1095,19 @@ function updateRiskSignals(){
 
   const navVsCost = (liveData.price2802 - port.cost) / port.cost * 100;
   signals.push({name:'2802 現價 vs 你的成本',level:navVsCost>0?'low':navVsCost>-5?'mid':'hi',note:`${navVsCost>=0?'高出':'低於'}成本 ${Math.abs(navVsCost).toFixed(2)}%`});
+
+  const buy2802 = calcBuySignal(liveData.price2802, alertSettings.target2802, alertSettings.bufferPct);
+  const buy3416 = calcBuySignal(liveData.price3416, alertSettings.target3416, alertSettings.bufferPct);
+  signals.push({
+    name:'2802 買入提示',
+    level:buy2802.level==='strong'?'hi':buy2802.level==='near'?'mid':'low',
+    note:`現價 $${liveData.price2802.toFixed(3)}；目標 $${alertSettings.target2802.toFixed(3)}；${signalText(buy2802)}`
+  });
+  signals.push({
+    name:'3416 買入提示',
+    level:buy3416.level==='strong'?'hi':buy3416.level==='near'?'mid':'low',
+    note:`現價 $${liveData.price3416.toFixed(3)}；目標 $${alertSettings.target3416.toFixed(3)}；${signalText(buy3416)}`
+  });
 
   signals.push({name:'HSCEI 短期走勢',level:liveData.hscei<7500?'hi':liveData.hscei<8000?'mid':'low',note:`當前 ${liveData.hscei.toLocaleString()} 點`});
 
@@ -1216,6 +1346,9 @@ window.addEventListener('DOMContentLoaded',()=>{
   el('editUnits').value = port.units;
   el('editCost').value = port.cost;
   el('editDivRec').value = port.divReceived;
+  el('alertTarget2802').value = alertSettings.target2802;
+  el('alertTarget3416').value = alertSettings.target3416;
+  el('alertBuffer').value = alertSettings.bufferPct;
 
   updateKPIs();
   renderLog();
